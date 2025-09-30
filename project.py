@@ -86,12 +86,18 @@ def load_nlp_model():
     try:
         return spacy.load("en_core_web_sm")
     except Exception as e:
-        st.error("⚠ SpaCy model 'en_core_web_sm' is missing. Run: `python -m spacy download en_core_web_sm`")
-        return None
+        st.warning("⚠️ Installing SpaCy model 'en_core_web_sm'... This may take a moment.")
+        try:
+            import subprocess
+            import sys
+            # Try to download the model
+            subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
+            return spacy.load("en_core_web_sm")
+        except Exception as install_error:
+            st.error("❌ Failed to install SpaCy model. Using basic text processing instead.")
+            return None
 
 nlp = load_nlp_model()
-if not nlp:
-    st.stop()
 
 # 📌 Function to Extract Text from PDF
 def extract_text_from_pdf(pdf_file):
@@ -122,7 +128,6 @@ def parse_resume(uploaded_file):
 
 # 📌 Function to Extract Skills using NLP
 def extract_skills(text):
-    doc = nlp(text.lower())
     skills = set()
     
     # Enhanced common skills list
@@ -140,14 +145,22 @@ def extract_skills(text):
         "rest api", "graphql", "oauth", "authentication", "blockchain", "cybersecurity"
     ]
     
-    # Extract single word skills
-    for token in doc:
-        if token.text in common_skills:
-            skills.add(token.text)
+    text_lower = text.lower()
     
-    # Extract multi-word skills
+    # If nlp model is available, use it for better token extraction
+    if nlp:
+        try:
+            doc = nlp(text_lower)
+            # Extract single word skills
+            for token in doc:
+                if token.text in common_skills:
+                    skills.add(token.text)
+        except:
+            pass  # Fall back to basic text matching
+    
+    # Extract multi-word skills (always do this regardless of nlp availability)
     for skill in common_skills:
-        if len(skill.split()) > 1 and skill.lower() in text.lower():
+        if skill.lower() in text_lower:
             skills.add(skill)
     
     return list(skills)
